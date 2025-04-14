@@ -1,0 +1,7 @@
+[submodule "components/arduino"]
+    path = components/arduino
+    url = https://github.com/espressif/arduino-esp32.git
+
+[submodule "components/scservo"]
+    path = components/scservo
+    url = https://github.com/workloads/scservo.git
