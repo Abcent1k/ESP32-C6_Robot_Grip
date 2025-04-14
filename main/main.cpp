@@ -13,6 +13,9 @@
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 
+extern const uint8_t _binary_chart_js_start[];
+extern const uint8_t _binary_chart_js_end[];
+
 #define WIFI_SSID "ESP32-GRIP"
 #define WIFI_PASS "Gubami_2023"
 #define MAX_STA_CONN 1
@@ -62,6 +65,15 @@ esp_err_t status_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+esp_err_t js_handler(httpd_req_t *req)
+{
+    const size_t js_len = _binary_chart_js_end - _binary_chart_js_start;
+    httpd_resp_set_type(req, "application/javascript");
+    httpd_resp_send(req, (const char *)_binary_chart_js_start, js_len);
+    return ESP_OK;
+}
+
+
 httpd_handle_t start_webserver(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -81,6 +93,13 @@ httpd_handle_t start_webserver(void)
             .method = HTTP_GET,
             .handler = status_handler};
         httpd_register_uri_handler(server, &status_uri);
+
+        httpd_uri_t js_uri = {
+            .uri = "/chart.js",
+            .method = HTTP_GET,
+            .handler = js_handler
+        };
+        httpd_register_uri_handler(server, &js_uri);
     }
     return server;
 }

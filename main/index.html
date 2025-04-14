@@ -1,36 +1,111 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>ESP32 Servo Monitor</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/chart.js"></script>
   <style>
-    pre { font-family: monospace; }
+    body { font-family: sans-serif; padding: 20px; }
+    canvas { max-width: 100%; }
+    #output { margin-top: 1em; font-family: monospace; }
   </style>
 </head>
 <body>
-<h2>Servo Status</h2>
+
+<h2>Servo Status Monitor</h2>
+
+<label for="parameter">Select parameter:</label>
+<select id="parameter">
+  <option value="current">Current (mA)</option>
+  <option value="position">Position</option>
+  <option value="voltage">Voltage (V)</option>
+  <option value="torque">Torque</option>
+  <option value="temperature">Temperature (°C)</option>
+</select>
+
+<canvas id="chart" height="100"></canvas>
+
 <pre id="output">Loading...</pre>
+
 <script>
+const MAX_POINTS = 50;
+let chart;
+let labels = [];
+let dataPoints = {
+  current: [],
+  position: [],
+  voltage: [],
+  torque: [],
+  temperature: []
+};
+
+function createChart() {
+  const ctx = document.getElementById('chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Value',
+        data: [],
+        fill: false,
+        borderColor: 'blue',
+        tension: 0.1
+      }]
+    },
+    options: {
+      animation: false,
+      scales: {
+        x: { display: false },
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+function updateChart(selected) {
+  chart.data.labels = labels;
+  chart.data.datasets[0].label = selected;
+  chart.data.datasets[0].data = dataPoints[selected];
+  chart.update();
+}
+
+createChart();
+
 setInterval(() => {
   fetch('/api/status')
     .then(r => r.json())
     .then(data => {
-      // Форматування значень для фіксованої довжини
-      const current = String(data.current).padStart(4, ' '); // Додаємо пробіли до 4 символів
-      const position = String(data.position).padStart(5, ' ');
-      const voltage = String(data.voltage.toFixed(1)).padStart(6, ' ');
-      const torque = String(data.torque).padStart(4, ' ');
-      const temperature = String(data.temperature).padStart(3, ' ');
+      const timestamp = new Date().toLocaleTimeString();
 
-      // Вивід даних з використанням innerHTML
+      // Update text
       document.getElementById('output').innerHTML =
-        `Current:     ${current} mA<br>` +
-        `Position:    ${position}<br>` +
-        `Voltage:     ${voltage} V<br>` +
-        `Torque:      ${torque}<br>` +
-        `Temperature: ${temperature} C`;
+        `Current:     ${String(data.current).padStart(4)} mA\n` +
+        `Position:    ${String(data.position).padStart(5)}\n` +
+        `Voltage:     ${data.voltage.toFixed(1).padStart(6)} V\n` +
+        `Torque:      ${String(data.torque).padStart(4)}\n` +
+        `Temperature: ${String(data.temperature).padStart(3)} C`;
+
+      // Store values
+      labels.push(timestamp);
+      Object.keys(dataPoints).forEach(key => {
+        dataPoints[key].push(data[key]);
+        if (dataPoints[key].length > MAX_POINTS) dataPoints[key].shift();
+      });
+      if (labels.length > MAX_POINTS) labels.shift();
+
+      // Update chart
+      const selected = document.getElementById('parameter').value;
+      updateChart(selected);
     });
 }, 100);
+
+// Update chart when user selects a different parameter
+document.getElementById('parameter').addEventListener('change', () => {
+  const selected = document.getElementById('parameter').value;
+  updateChart(selected);
+});
 </script>
+
 </body>
 </html>
