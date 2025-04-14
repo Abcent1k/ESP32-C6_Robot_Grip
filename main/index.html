@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 Servo Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    pre { font-family: monospace; }
+  </style>
+</head>
+<body>
+<h2>Servo Status</h2>
+<pre id="output">Loading...</pre>
+<script>
+setInterval(() => {
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      // Форматування значень для фіксованої довжини
+      const current = String(data.current).padStart(4, ' '); // Додаємо пробіли до 4 символів
+      const position = String(data.position).padStart(5, ' ');
+      const voltage = String(data.voltage.toFixed(1)).padStart(6, ' ');
+      const torque = String(data.torque).padStart(4, ' ');
+      const temperature = String(data.temperature).padStart(3, ' ');
+
+      // Вивід даних з використанням innerHTML
+      document.getElementById('output').innerHTML =
+        `Current:     ${current} mA<br>` +
+        `Position:    ${position}<br>` +
+        `Voltage:     ${voltage} V<br>` +
+        `Torque:      ${torque}<br>` +
+        `Temperature: ${temperature} C`;
+    });
+}, 100);
+</script>
+</body>
+</html>
