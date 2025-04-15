@@ -1,111 +1,186 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <meta charset="UTF-8">
-  <title>ESP32 Servo Monitor</title>
-  <script src="/chart.js"></script>
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    canvas { max-width: 100%; }
-    #output { margin-top: 1em; font-family: monospace; }
-  </style>
+    <meta charset="UTF-8">
+    <title>ESP32 Servo Monitor</title>
+    <script src="chart.js"></script>
+    <style>
+        body,
+        html {
+            font-family: sans-serif;
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .controls {
+            padding: 10px;
+            display: flex;
+        }
+
+        .controls button {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            color: white;
+            border: none;
+            cursor: pointer;
+            opacity: 0.4;
+            transition: opacity 0.3s;
+            font-size: 20px;
+            height: 100px;
+        }
+
+        .controls button.active {
+            opacity: 1;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: calc(100% - 163px);
+        }
+
+        .data-output {
+            padding: 10px;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .data-output div {
+            flex: 1;
+            text-align: center;
+            font-size: 20px;
+        }
+    </style>
 </head>
+
 <body>
 
-<h2>Servo Status Monitor</h2>
+    <div class="controls">
+        <button id="current" style="background-color: red;" class="active">Current (mA)</button>
+        <button id="position" style="background-color: blue;" class="active">Position</button>
+        <button id="voltage" style="background-color: green;">Voltage (V)</button>
+        <button id="torque" style="background-color: orange;">Torque</button>
+        <button id="temperature" style="background-color: purple;">Temperature (°C)</button>
+    </div>
 
-<label for="parameter">Select parameter:</label>
-<select id="parameter">
-  <option value="current">Current (mA)</option>
-  <option value="position">Position</option>
-  <option value="voltage">Voltage (V)</option>
-  <option value="torque">Torque</option>
-  <option value="temperature">Temperature (°C)</option>
-</select>
+    <div class="chart-container">
+        <canvas id="chart"></canvas>
+    </div>
 
-<canvas id="chart" height="100"></canvas>
+    <div class="data-output">
+        <div>Current: <span id="current-value">-</span> mA</div>
+        <div>Position: <span id="position-value">-</span></div>
+        <div>Voltage: <span id="voltage-value">-</span> V</div>
+        <div>Torque: <span id="torque-value">-</span></div>
+        <div>Temperature: <span id="temperature-value">-</span> °C</div>
+    </div>
 
-<pre id="output">Loading...</pre>
+    <script>
+        const MAX_POINTS = 300;
+        const labels = [];
 
-<script>
-const MAX_POINTS = 50;
-let chart;
-let labels = [];
-let dataPoints = {
-  current: [],
-  position: [],
-  voltage: [],
-  torque: [],
-  temperature: []
-};
+        const dataPoints = {
+            current: [],
+            position: [],
+            voltage: [],
+            torque: [],
+            temperature: []
+        };
 
-function createChart() {
-  const ctx = document.getElementById('chart').getContext('2d');
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Value',
-        data: [],
-        fill: false,
-        borderColor: 'blue',
-        tension: 0.1
-      }]
-    },
-    options: {
-      animation: false,
-      scales: {
-        x: { display: false },
-        y: { beginAtZero: true }
-      }
-    }
-  });
-}
+        const axesConfig = {
+            current: { min: 0, max: 3000, color: 'red' },
+            position: { min: 0, max: 4095, color: 'blue' },
+            voltage: { min: 4, max: 12, color: 'green' },
+            torque: { min: -2000, max: 2000, color: 'orange' },
+            temperature: { min: 15, max: 75, color: 'purple' }
+        };
 
-function updateChart(selected) {
-  chart.data.labels = labels;
-  chart.data.datasets[0].label = selected;
-  chart.data.datasets[0].data = dataPoints[selected];
-  chart.update();
-}
+        const datasets = [];
+        const yAxes = {};
 
-createChart();
+        Object.keys(axesConfig).reverse().forEach((param, idx) => {
+            yAxes[param] = {
+                type: 'linear',
+                position: 'left',
+                min: axesConfig[param].min,
+                max: axesConfig[param].max,
+                display: ['current', 'position'].includes(param),
+                grid: { drawOnChartArea: idx === 0 },
+                title: { display: false },
+                ticks: {
+                    color: axesConfig[param].color, maxRotation: 90, minRotation: 90, font: { size: 20 }, align: 'center', callback: function (value) {
+                        return value === axesConfig[param].min ? '' : value;
+                    }
+                }
+            };
 
-setInterval(() => {
-  fetch('/api/status')
-    .then(r => r.json())
-    .then(data => {
-      const timestamp = new Date().toLocaleTimeString();
+            datasets.push({
+                label: param,
+                data: dataPoints[param],
+                borderColor: axesConfig[param].color,
+                yAxisID: param,
+                tension: 0.1,
+                hidden: !['current', 'position'].includes(param)
+            });
+        });
 
-      // Update text
-      document.getElementById('output').innerHTML =
-        `Current:     ${String(data.current).padStart(4)} mA\n` +
-        `Position:    ${String(data.position).padStart(5)}\n` +
-        `Voltage:     ${data.voltage.toFixed(1).padStart(6)} V\n` +
-        `Torque:      ${String(data.torque).padStart(4)}\n` +
-        `Temperature: ${String(data.temperature).padStart(3)} C`;
+        const ctx = document.getElementById('chart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: {
+                        display: true,
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                            autoSkip: true,
+                            maxTicksLimit: Math.floor(MAX_POINTS / 50)
+                        }
+                    },
+                    ...yAxes
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
 
-      // Store values
-      labels.push(timestamp);
-      Object.keys(dataPoints).forEach(key => {
-        dataPoints[key].push(data[key]);
-        if (dataPoints[key].length > MAX_POINTS) dataPoints[key].shift();
-      });
-      if (labels.length > MAX_POINTS) labels.shift();
+        function updateVisibility(event) {
+            event.target.classList.toggle('active');
+            const param = event.target.id;
+            const dataset = chart.data.datasets.find(ds => ds.label === param);
+            dataset.hidden = !event.target.classList.contains('active');
+            chart.options.scales[dataset.yAxisID].display = !dataset.hidden;
+            chart.update();
+        }
 
-      // Update chart
-      const selected = document.getElementById('parameter').value;
-      updateChart(selected);
-    });
-}, 100);
+        document.querySelectorAll('.controls button').forEach(btn => {
+            btn.addEventListener('click', updateVisibility);
+        });
 
-// Update chart when user selects a different parameter
-document.getElementById('parameter').addEventListener('change', () => {
-  const selected = document.getElementById('parameter').value;
-  updateChart(selected);
-});
-</script>
+        setInterval(() => {
+            fetch('/api/status').then(r => r.json()).then(data => {
+                const time = new Date().toLocaleTimeString('en-GB');
+                labels.push(time);
+
+                if (labels.length > MAX_POINTS) labels.shift();
+
+                Object.keys(dataPoints).forEach(param => {
+                    dataPoints[param].push(data[param]);
+                    if (dataPoints[param].length > MAX_POINTS) dataPoints[param].shift();
+                    document.getElementById(`${param}-value`).innerText = data[param];
+                });
+
+                chart.update();
+            });
+        }, 100);
+    </script>
 
 </body>
 </html>

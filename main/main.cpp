@@ -17,18 +17,17 @@ extern const uint8_t _binary_chart_js_start[];
 extern const uint8_t _binary_chart_js_end[];
 
 #define WIFI_SSID "ESP32-GRIP"
-#define WIFI_PASS "Gubami_2023"
-#define MAX_STA_CONN 1
+#define WIFI_PASS "P@sswd22"
+#define MAX_STA_CONN 4
 #define TAG "ESP32_SERVER"
 
 SMS_STS sms_sts;
 
-// Константи
-const int OPEN_POS = 2000;
-const int CLOSE_POS = 3200;
-const int BUTTON_PIN = 22;
+const int OPEN_POS = 2000; // Open position for the servo
+const int CLOSE_POS = 3200; // Close position for the servo
+const int BUTTON_PIN = 22; // GPIO pin for the button
 
-// Створення UART-порту (GPIO4 - TX, GPIO5 - RX)
+// Create UART port (GPIO4 - TX, GPIO5 - RX)
 HardwareSerial SCSerial(1);
 
 // FreeRTOS task handles
@@ -65,6 +64,7 @@ esp_err_t status_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Serve JavaScript file
 esp_err_t js_handler(httpd_req_t *req)
 {
     const size_t js_len = _binary_chart_js_end - _binary_chart_js_start;
@@ -73,7 +73,7 @@ esp_err_t js_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-
+// Start HTTP server
 httpd_handle_t start_webserver(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -104,6 +104,7 @@ httpd_handle_t start_webserver(void)
     return server;
 }
 
+// Initialize Wi-Fi in AP mode
 void wifi_init_softap()
 {
     esp_netif_create_default_wifi_ap();
@@ -111,18 +112,18 @@ void wifi_init_softap()
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     wifi_config_t wifi_config = {};
-    strcpy((char *)wifi_config.ap.ssid, WIFI_SSID); // SSID точки доступу
+    strcpy((char *)wifi_config.ap.ssid, WIFI_SSID); // SSID of the access point
     wifi_config.ap.ssid_len = strlen(WIFI_SSID);
-    wifi_config.ap.max_connection = MAX_STA_CONN;
-    wifi_config.ap.authmode = WIFI_AUTH_WPA2_PSK;       // Встановлення типу аутентифікації (WPA2-Personal)
-    strcpy((char *)wifi_config.ap.password, WIFI_PASS); // Пароль для точки доступу
-    wifi_config.ap.ssid_hidden = 0;                     // SSID буде видимим
-    wifi_config.ap.beacon_interval = 100;               // Інтервал сигналу
+    wifi_config.ap.max_connection = MAX_STA_CONN; // Maximum number of connections
+    wifi_config.ap.authmode = WIFI_AUTH_WPA2_PSK; // Set authentication type (WPA2-Personal)
+    strcpy((char *)wifi_config.ap.password, WIFI_PASS); // Password for the access point
+    wifi_config.ap.ssid_hidden = 0; // SSID will be visible
+    wifi_config.ap.beacon_interval = 100; // Beacon interval
 
-    // Якщо пароль порожній, то точка доступу працюватиме без пароля
+    // If the password is empty, the access point will operate without a password
     if (strlen(WIFI_PASS) == 0)
     {
-        wifi_config.ap.authmode = WIFI_AUTH_OPEN; // Без пароля, відкритий доступ
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN; // No password, open access
     }
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
@@ -135,7 +136,7 @@ void wifi_init_softap()
 // Function for servo control
 void servoControlTask(void *parameter)
 {
-    int previousButtonState = digitalRead(BUTTON_PIN); // Initialize with default state (not pressed)
+    int previousButtonState = digitalRead(BUTTON_PIN);
 
     while (true)
     {
@@ -153,7 +154,7 @@ void servoControlTask(void *parameter)
                 printf("Button released!\n");
             sms_sts.WritePosEx(1, OPEN_POS, 1500, 50);
         }
-        previousButtonState = buttonState; // Update the previous state
+        previousButtonState = buttonState;
 
         vTaskDelay(100 / portTICK_PERIOD_MS); // Delay to prevent task hogging
     }
@@ -161,7 +162,6 @@ void servoControlTask(void *parameter)
 
 extern "C" void app_main(void)
 {
-    // Init NVS, network, WiFi
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
