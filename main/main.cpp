@@ -24,7 +24,7 @@ extern const uint8_t _binary_chart_js_end[];
 SMS_STS sms_sts;
 
 const int OPEN_POS = 2000; // Open position for the servo
-const int CLOSE_POS = 3200; // Close position for the servo
+const int CLOSE_POS = 3600; // Close position for the servo
 const int BUTTON_PIN = 22; // GPIO pin for the button
 
 // Create UART port (GPIO4 - TX, GPIO5 - RX)
@@ -146,6 +146,7 @@ void servoControlTask(void *parameter)
         {
             if (buttonState != previousButtonState)
                 printf("Button pressed!\n");
+            sms_sts.writeWord(1, 48, 400);
             sms_sts.WritePosEx(1, CLOSE_POS, 1500, 50);
         }
         else
